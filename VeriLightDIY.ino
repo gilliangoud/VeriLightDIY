@@ -12,8 +12,6 @@
   https://github.com/witnessmenow/ESP32-WiFi-Manager-Examples
 */
 
-// Include Libraries
-
 #include <WiFi.h>         // WiFi Library
 #include <FS.h>           // File System Library
 #include <SPIFFS.h>       // SPI Flash Syetem Library
@@ -28,6 +26,10 @@
 #define JSON_CONFIG_FILE "/config.json"    // JSON configuration file
 #define SCREEN_WIDTH 128                        // OLED display width, in pixels
 #define SCREEN_HEIGHT 64                        // OLED display height, in pixels
+
+#define PIN_GREEN 17
+#define PIN_YELLOW 18
+#define PIN_RED 18
 
 // Flag for saving data
 bool shouldSaveConfig = false;
@@ -57,119 +59,105 @@ const long interval = 1000;  // interval at which to blink (milliseconds)
 int colbyte = 0;
 int colbytestor = 0;
 int blinkbyte = 0;
+bool blinkState = false;
 
 // Function to light any color depending on 7th bit
-void lighton(int a)
-{
+void lighton(int a) {
     switch(a) {
-      case 0: leds[i] = CRGB::Black;break;
-      case 1: leds[i] = CRGB::Red;break;
-      case 2: leds[i] = CRGB::Gold;break;        // Instead of "Amber"
-      case 3: leds[i] = CRGB::GreenYellow;break; // Instead of "Lemon"
-      case 4: leds[i] = CRGB::Green;break;
-      case 5: leds[i] = CRGB::SkyBlue;break;
-      case 6: leds[i] = CRGB::Blue;break;
-      case 7: leds[i] = CRGB::Purple;break;
-      case 8: leds[i] = CRGB::Pink;break;
-      case 9: leds[i] = CRGB::White;break;
-      default: leds[i] = CRGB::Black;break;
+      // case 0: break; // Originally Black
+      case 1:
+        digitalWrite(PIN_GREEN, LOW);
+        digitalWrite(PIN_YELLOW, LOW);
+        digitalWrite(PIN_RED, HIGH);
+        break; // Originally Red
+      // case 2: ;break; // Originally Gold
+      // case 3: ;break; // Originally GreenYellow
+      case 4:
+      digitalWrite(PIN_RED, LOW);
+      digitalWrite(PIN_YELLOW, LOW);
+      digitalWrite(PIN_GREEN, HIGH);
+      break; // Originally Green
+      // case 5: break; // Originally SkyBlue
+      // case 6: break; // Originally Blue
+      // case 7: break; // Originally Purple
+      // case 8: break; // Originally Pink
+      // case 9: break; // Originally White
+      default:
+        digitalWrite(PIN_RED, LOW);
+        digitalWrite(PIN_YELLOW, LOW);
+        digitalWrite(PIN_GREEN, LOW);
+        break; // Originally Black
     }
 }
 
 void idleLight() {
   // Blink code
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    digitalWrite(PIN_YELLOW, !digitalRead(PIN_YELLOW));
+  }
 }
 
-void saveConfigFile()
-// Save Config in JSON format
-{
+void saveConfigFile() { // Save Config in JSON format
   Serial.println(F("Saving configuration..."));
 
-  // Create a JSON document
   JsonDocument json;
   json["testString"] = testString;
   json["LynxPort"] = LynxPort;
 
-  // Open config file
   File configFile = SPIFFS.open(JSON_CONFIG_FILE, "w");
-  if (!configFile)
-  {
-    // Error, file did not open
+  if (!configFile) {
     Serial.println("failed to open config file for writing");
   }
 
-  // Serialize JSON data to write to file
   serializeJsonPretty(json, Serial);
-  if (serializeJson(json, configFile) == 0)
-  {
-    // Error writing file
+  if (serializeJson(json, configFile) == 0) {
     Serial.println(F("Failed to write to file"));
   }
-  // Close file
-  configFile.close();
+
+  configFile.close(); // Close file
 }
 
-bool loadConfigFile()
-// Load existing configuration file
-{
+bool loadConfigFile() { // Load existing configuration file
   // Uncomment if we need to format filesystem
   // SPIFFS.format();
-
-  // Read configuration from FS json
   Serial.println("Mounting File System...");
 
   // May need to make it begin(true) first time you are using SPIFFS
-  if (SPIFFS.begin(false) || SPIFFS.begin(true))
-  {
+  if (SPIFFS.begin(false) || SPIFFS.begin(true)) {
     Serial.println("mounted file system");
-    if (SPIFFS.exists(JSON_CONFIG_FILE))
-    {
-      // The file exists, reading and loading
+    if (SPIFFS.exists(JSON_CONFIG_FILE)) {
       Serial.println("reading config file");
       File configFile = SPIFFS.open(JSON_CONFIG_FILE, "r");
-      if (configFile)
-      {
+      if (configFile) {
         Serial.println("Opened configuration file");
         JsonDocument json;
         DeserializationError error = deserializeJson(json, configFile);
         serializeJsonPretty(json, Serial);
-        if (!error)
-        {
+        if (!error) {
           Serial.println("Parsing JSON");
-
           strcpy(testString, json["testString"]);
           LynxPort = json["LynxPort"].as<int>();
-
           return true;
-        }
-        else
-        {
-          // Error loading JSON data
+        } else {
           Serial.println("Failed to load json config");
         }
       }
     }
-  }
-  else
-  {
-    // Error mounting file system
+  } else {
     Serial.println("Failed to mount FS");
   }
 
   return false;
 }
 
-
-void saveConfigCallback()
-// Callback notifying us of the need to save configuration
-{
+void saveConfigCallback() { // Callback notifying us of the need to save configuration
   Serial.println("Should save config");
   shouldSaveConfig = true;
 }
 
-void configModeCallback(WiFiManager *myWiFiManager)
-// Called when config mode launched
-{
+void configModeCallback(WiFiManager *myWiFiManager) { // Called when config mode launched
   Serial.println("Entered Configuration Mode");
 
   Serial.print("Config SSID: ");
@@ -191,13 +179,14 @@ void configModeCallback(WiFiManager *myWiFiManager)
 
 void setBreakAfterConfig(boolean shouldBreak);
 
-void setup()
-{
+void setup() {
   pinMode(TRIGGER_PIN, INPUT_PULLUP);
+  pinMode(PIN_GREEN, OUTPUT);
+  pinMode(PIN_YELLOW, OUTPUT);
+  pinMode(PIN_RED, OUTPUT);
 
   wm.setConfigPortalTimeout(timeout);
 
-  // Setup Serial monitor
   Serial.begin(115200);
   delay(10);
 
@@ -217,36 +206,33 @@ void setup()
   display.println("3 sec");
   display.display();
 
-   Serial.println("Check Configuration Trigger for next 3 sec");
-         int runtime = millis();
-         int starttime = runtime;
-         while ((runtime - starttime) < 3000)
-         {
-             if (digitalRead(TRIGGER_PIN) == LOW)
-             {
-                 Serial.println("Configuration manually triggered.");
+  Serial.println("Check Configuration Trigger for next 3 sec");
+  unsigned long runtime = millis();
+  unsigned long starttime = runtime;
+  while ((runtime - starttime) < 3000) {
+    if (digitalRead(TRIGGER_PIN) == LOW) {
+      Serial.println("Configuration manually triggered.");
 
-                 display.clearDisplay();
-                 display.setTextSize(1);
-                 display.setTextColor(WHITE);
-                 display.setCursor(0, 0);
-                 display.println("    VeriLight DIY   ");
-                 display.println("--------------------");
-                 display.println("Config. triggered.");
-                 display.println("Entering AP-Mode.");
-                 display.display();
-                   forceConfig = true;
-             }
-             Serial.print(".");
-             display.print(".");
-             display.display();
-             delay(500);
-             runtime = millis();
-         }
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setTextColor(WHITE);
+      display.setCursor(0, 0);
+      display.println("    VeriLight DIY   ");
+      display.println("--------------------");
+      display.println("Config. triggered.");
+      display.println("Entering AP-Mode.");
+      display.display();
+      forceConfig = true;
+    }
+    Serial.print(".");
+    display.print(".");
+    display.display();
+    delay(500);
+    runtime = millis();
+  }
 
   bool spiffsSetup = loadConfigFile();
-  if (!spiffsSetup)
-  {
+  if (!spiffsSetup) {
     Serial.println(F("Forcing config mode as there is no saved config"));
     forceConfig = true;
   }
@@ -282,11 +268,10 @@ void setup()
   wm.addParameter(&custom_text_box);
   wm.addParameter(&custom_text_box_num);
 
-  if (forceConfig)
-    // Run if we need a configuration
-  {
-    if (!wm.startConfigPortal("ReadyLight_AP", "12345678"))
-    {
+  Serial.println(F("Reached"));
+
+  if (false) { // Run if we need a configuration -- forceConfig
+    if (!wm.startConfigPortal("ReadyLight_AP", "12345678")) {
       Serial.println("failed to connect and hit timeout");
       display.clearDisplay();
       display.setCursor(0, 0);
@@ -301,11 +286,8 @@ void setup()
       ESP.restart();
       delay(5000);
     }
-  }
-  else
-  {
-    if (!wm.autoConnect("ReadyLight_AP", "12345678"))
-    {
+  } else {
+    if (!wm.autoConnect("ReadyLight_AP", "12345678")) {
       Serial.println("failed to connect and hit timeout");
       display.clearDisplay();
       display.setCursor(0, 0);
@@ -322,8 +304,7 @@ void setup()
     }
   }
 
-  // If we get here, we are connected to the WiFi
-
+  // If we get here, assume we are connected to the WiFi
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
@@ -355,8 +336,7 @@ void setup()
 
 
   // Save the custom parameters to FS
-  if (shouldSaveConfig)
-  {
+  if (shouldSaveConfig) {
     saveConfigFile();
     ESP.restart();
   }
@@ -366,93 +346,75 @@ void setup()
 
 
 void loop() {
+  WiFiClient client = server.available();    // Listen for incoming clients
+  idleLight();
 
-   WiFiClient client = server.available();    // Listen for incoming clients
-   idleLight();
+  if (client) {                             // If a new client connects,
+    if (client.connected()) {
+      Serial.println("Client connected.");  // print a message out in the serial port
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.println("    VeriLight DIY   ");
+      display.println("--------------------");
+      display.print("IP: ");
+      display.println(WiFi.localIP());
+      display.print("Port: ");
+      display.println(LynxPort);
+      display.println("--------------------");
+      display.println("  CLIENT CONNECTED  ");
+      display.display();
+    }
+    while (true) {                          // loop while the client's connected
+      if (client.available()) {
+        delay(10);                            // delay to allow all bytes to be transferred
+        sizeMsg = client.available();         // number of bytes transferred
+        char charArray[sizeMsg];            // create array with the size of bytes (-1 because array starts with 0) --> That makes no sense, as the size does not get counted
 
-    if (client) {                             // If a new client connects,
-      if (client.connected()) {
-        Serial.println("Client connected.");  // print a message out in the serial port
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("    VeriLight DIY   ");
-        display.println("--------------------");
-        display.print("IP: ");
-        display.println(WiFi.localIP());
-        display.print("Port: ");
-        display.println(LynxPort);
-        display.println("--------------------");
-        display.println("  CLIENT CONNECTED  ");
-        display.display();
+        Serial.print("I received: ");
+        Serial.print(sizeMsg);
+        Serial.println(" bytes.");
+
+        for (int i=0; i < sizeMsg; i++) { // for-loop to fill the array wiht the transferred bytes
+            charArray[i] = client.read();     // fill the array
+
+            Serial.print("Byte ");
+            Serial.print(i+1);
+            Serial.print(": ");
+            Serial.println(charArray[i], HEX);  //print out the content of the array at i
+        }
+
+        if (sizeMsg > 7) {
+          colbyte = charArray[6];                   // convert 7th byte into int
+          colbytestor = charArray[6];               // create a colbytestorage for blinking
+          Serial.print("The 7th bit is: ");
+          Serial.print(colbyte);
+          if (sizeMsg > 12) {
+            blinkbyte = charArray[12];
+            Serial.print("The blinkbit is: ");
+            Serial.print(blinkbyte);
+          }
+        } else {
+          Serial.println("Msg smaller than 7 byte - LED off."); //Wenn Initialisiert wird, die Zeit läuft oder pausiert ist (weniger als 7 bytes), keine Freigabe; d.h. ABC000
+          // TODO: Turn All lights off
+          colbyte = 0;
+        }
       }
-      while (true) {                          // loop while the client's connected
-        if (client.available())
-        {
-          delay(10);                            // delay to allow all bytes to be transferred
-          sizeMsg = client.available();         // number of bytes transferred
-          char charArray[sizeMsg];            // create array with the size of bytes (-1 because array starts with 0) --> That makes no sense, as the size does not get counted
-
-          Serial.print("I received: ");
-          Serial.print(sizeMsg);
-          Serial.println(" bytes.");
-
-          for (int i=0; i < sizeMsg; i++)     // for-loop to fill the array wiht the transferred bytes
-            {
-              charArray[i] = client.read();     // fill the array
-
-              Serial.print("Byte ");
-              Serial.print(i+1);
-              Serial.print(": ");
-              Serial.println(charArray[i], HEX);  //print out the content of the array at i
-           }
-           if (sizeMsg > 7)
-           {
-            colbyte = charArray[6];                   // convert 7th byte into int
-            colbytestor = charArray[6];               // create a colbytestorage for blinking
-            Serial.print("The 7th bit is: ");
-            Serial.print(colbyte);
-            if (sizeMsg > 12)
-            {
-              blinkbyte = charArray[12];
-              Serial.print("The blinkbit is: ");
-              Serial.print(blinkbyte);
-            }
-           }
-           else
-           {
-            Serial.println("Msg smaller than 7 byte - LED off."); //Wenn Initialisiert wird, die Zeit läuft oder pausiert ist (weniger als 7 bytes), keine Freigabe; d.h. ABC000
-            // TODO: Turn All lights off
+      unsigned long currentMillis = millis();
+      if (blinkbyte == 1) { // check if the blinkbyte is 1
+        if (currentMillis - previousMillis >= interval) {
+          previousMillis = currentMillis;
+          if (colbyte == colbytestor) {
             colbyte = 0;
-           }
-
+          } else {
+            colbyte = colbytestor;
+          }
+          lighton(colbyte);
         }
-        unsigned long currentMillis = millis();
+      } else {
+          lighton(colbyte);                         // call lighton function, color dependend on 7th byte, blinking dependend on 13th byte (off by default)
+      }
 
-        if (blinkbyte == 1)               // check if the blinkbyte is 1
-        {
-          if (currentMillis - previousMillis >= interval)
-          {
-            previousMillis = currentMillis;
-            if (colbyte == colbytestor)
-            {
-              colbyte = 0;
-            }
-            else
-            {
-              colbyte = colbytestor;
-            }
-              lighton(colbyte);
-           }
-        }
-         else
-         {
-           lighton(colbyte);                         // call lighton function, color dependend on 7th byte, blinking dependend on 13th byte (off by default)
-         }
-
-
-
-      if (!client.connected())                        // if the client disconnects
-      {
+      if (!client.connected()) { // if the client disconnects
         Serial.println("Client disconnected.");
         display.clearDisplay();
         display.setCursor(0, 0);
@@ -469,7 +431,6 @@ void loop() {
         // TODO: Turn All lights off
         break;                                    // leave the for loop to be ready for new connection
       }
-     }
     }
-
+  }
 }

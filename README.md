@@ -17,6 +17,9 @@ Feel free to edit, adapt and print those parts for your needs.
 
 ## Connection Diagram TODO
 Pin 13: Reset Button
+Pin 17: to Green LED
+Pin 18: to Yellow LED
+Pin 19: to Red LED
 Pin 21: SDA Pin (OLED Screen)
 Pin 22: SCL Pin (OLED Screen)
 
